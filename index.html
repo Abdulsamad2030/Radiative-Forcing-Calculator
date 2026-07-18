@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Radiative Forcing Calculator</title>
+<style>
+  :root {
+    --bg: #0c1210;
+    --panel: #131d1a;
+    --accent: #4ade80;
+    --accent-dim: #22c55e33;
+    --text: #e7f3ee;
+    --muted: #8fa89e;
+    --border: #223029;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% -10%, #1a2b23, var(--bg) 60%);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  .field { margin-bottom: 22px; }
+  label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  label span.val {
+    color: var(--accent);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 28px;
+  }
+  .result-box {
+    background: #0f1815;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .result-box .label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .result-box .value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .result-box .unit {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  canvas {
+    width: 100%;
+    height: 160px;
+    margin-top: 24px;
+    display: block;
+  }
+  .formula {
+    margin-top: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: #0f1815;
+    border-left: 2px solid var(--accent);
+    border-radius: 4px;
+    padding: 12px 14px;
+    color: var(--muted);
+    overflow-x: auto;
+  }
+  footer {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🌍 Radiative Forcing Calculator</h1>
+    <div class="subtitle">Explore how CO₂ concentration drives radiative forcing and estimated warming — based on the Myhre et al. (1998) logarithmic model.</div>
+
+    <div class="field">
+      <label>Current CO₂ concentration <span class="val" id="co2val">421 ppm</span></label>
+      <input type="range" id="co2" min="280" max="800" value="421" step="1" />
+    </div>
+
+    <div class="field">
+      <label>Pre-industrial baseline (C₀) <span class="val" id="baseval">280 ppm</span></label>
+      <input type="range" id="base" min="260" max="300" value="280" step="1" />
+    </div>
+
+    <div class="field">
+      <label>Climate feedback parameter (λ) <span class="val" id="lambdaval">1.2 W/m²/°C</span></label>
+      <input type="range" id="lambda" min="0.8" max="1.6" value="1.2" step="0.01" />
+    </div>
+
+    <div class="results">
+      <div class="result-box">
+        <div class="label">Radiative Forcing (ΔF)</div>
+        <div class="value" id="forcingOut">— <span class="unit">W/m²</span></div>
+      </div>
+      <div class="result-box">
+        <div class="label">Est. Equilibrium Warming</div>
+        <div class="value" id="warmingOut">— <span class="unit">°C</span></div>
+      </div>
+    </div>
+
+    <canvas id="chart"></canvas>
+
+    <div class="formula" id="formulaOut">ΔF = 5.35 × ln(C / C₀)</div>
+
+    <footer>
+      Built by <a href="#" target="_blank">Abdulsamad Murtala Haruna</a> · Physics, Northwest University, Kano
+    </footer>
+  </div>
+
+<script>
+  const co2 = document.getElementById('co2');
+  const base = document.getElementById('base');
+  const lambda = document.getElementById('lambda');
+  const co2val = document.getElementById('co2val');
+  const baseval = document.getElementById('baseval');
+  const lambdaval = document.getElementById('lambdaval');
+  const forcingOut = document.getElementById('forcingOut');
+  const warmingOut = document.getElementById('warmingOut');
+  const formulaOut = document.getElementById('formulaOut');
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+
+  function forcing(c, c0) {
+    return 5.35 * Math.log(c / c0);
+  }
+
+  function drawChart(c, c0, currentF) {
+    resizeCanvas();
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const minC = 280, maxC = 800;
+    const maxF = forcing(maxC, 260);
+    const pad = 10;
+
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x++) {
+      const cVal = minC + (x / w) * (maxC - minC);
+      const fVal = forcing(cVal, c0);
+      const y = h - pad - (fVal / maxF) * (h - pad * 2);
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // current point
+    const px = ((c - minC) / (maxC - minC)) * w;
+    const py = h - pad - (currentF / maxF) * (h - pad * 2);
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#4ade8055';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px, h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function update() {
+    const c = parseFloat(co2.value);
+    const c0 = parseFloat(base.value);
+    const lam = parseFloat(lambda.value);
+
+    co2val.textContent = c + ' ppm';
+    baseval.textContent = c0 + ' ppm';
+    lambdaval.textContent = lam.toFixed(2) + ' W/m²/°C';
+
+    const F = forcing(c, c0);
+    const warming = F / lam;
+
+    forcingOut.innerHTML = F.toFixed(2) + ' <span class="unit">W/m²</span>';
+    warmingOut.innerHTML = warming.toFixed(2) + ' <span class="unit">°C</span>';
+    formulaOut.textContent = `ΔF = 5.35 × ln(${c} / ${c0}) = ${F.toFixed(2)} W/m²  →  ΔT = ΔF / λ = ${warming.toFixed(2)}°C`;
+
+    drawChart(c, c0, F);
+  }
+
+  [co2, base, lambda].forEach(el => el.addEventListener('input', update));
+  window.addEventListener('resize', update);
+  update();
+</script>
+</body>
+</html>
