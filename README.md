@@ -17,7 +17,7 @@ Built as a companion piece to my B.Sc. Physics thesis, *"Radiative Forcing and C
 No build step required — it's a single static HTML file, ready for GitHub Pages.
 
 ## Live demo
-_Add your GitHub Pages link here once deployed._
+abdulsamad2030.github.io/Radiative-Forcing-Calculator/
 
 ## By
 Abdulsamad Murtala Haruna 
